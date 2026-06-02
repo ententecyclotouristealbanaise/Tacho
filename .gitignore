@@ -1,0 +1,12 @@
+node_modules/
+*.xlsx
+*.csv
+*.json
+.env
+.DS_Store
+dist/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+/.vscode/
