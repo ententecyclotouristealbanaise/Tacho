@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tacho Releveur</title>
+  <meta name="description" content="Page de relevé des heures de poste pour remplir le fichier Excel releveur.xlsx." />
+  <link rel="stylesheet" href="releveur.css" />
+</head>
+<body>
+  <main class="page-container">
+    <section class="panel">
+      <h1>Tacho Releveur</h1>
+      <p>Enregistre rapidement les heures de début, pause et fin de poste dans <strong>releveur.xlsx</strong>.</p>
+      <div class="form-group">
+        <label for="card-input">Carte chauffeur</label>
+        <input id="card-input" type="text" placeholder="Scanner ou saisir le numéro" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label for="chauffeur-input">Nom du chauffeur</label>
+        <input id="chauffeur-input" type="text" placeholder="Optionnel" />
+      </div>
+      <div class="button-row">
+        <button class="btn btn-primary" data-action="debut">Début de poste</button>
+        <button class="btn btn-secondary" data-action="pause">Pause midi</button>
+        <button class="btn btn-secondary" data-action="fin">Fin de poste</button>
+        <button id="export-suivi" class="btn btn-success">Exporter Suivi Excel</button>
+        <button id="export-csv" class="btn btn-outline">Exporter CSV</button>
+        <button id="export-json" class="btn btn-outline">Exporter JSON</button>
+      </div>
+      <p id="status-message" class="status-message">Scanne ta carte puis choisis l’action à enregistrer.</p>
+      <div class="note-box">
+        <p><strong>Info :</strong> le serveur Node.js doit être démarré avec <code>npm start</code>.</p>
+        <p>Ouvre cette page via <code>http://localhost:3000/releveur.html</code>.</p>
+      </div>
+    </section>
+  </main>
+  <script src="releveur.js"></script>
+  <script>
+    async function exportAnalyze(format) {
+      const status = document.getElementById('status-message');
+      status.textContent = 'Préparation de l’export...';
+
+      // Récupère les activités et driver depuis localStorage (convention du projet)
+      const activitiesRaw = localStorage.getItem('tacho_activities');
+      const driversRaw = localStorage.getItem('tacho_drivers');
+      if (!activitiesRaw) {
+        status.textContent = 'Aucune activité trouvée dans le navigateur.';
+        return;
+      }
+      const activities = JSON.parse(activitiesRaw).map(a => ({ ...a, start: a.start, end: a.end }));
+      const drivers = driversRaw ? JSON.parse(driversRaw) : [];
+      const payload = { driver: drivers[0] || null, activities };
+
+      try {
+        const resp = await fetch('/api/analyze-card?format=' + encodeURIComponent(format), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) {
+          const err = await resp.json();
+          status.textContent = 'Erreur serveur: ' + (err.error || resp.statusText);
+          return;
+        }
+        const blob = await resp.blob();
+        const filename = resp.headers.get('content-disposition')?.split('filename=')[1] || ('Suivi_Heures.' + format);
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename.replace(/"/g,'');
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        status.textContent = 'Export téléchargé.';
+      } catch (e) {
+        console.error(e);
+        status.textContent = 'Erreur lors de l’export.';
+      }
+    }
+
+    document.getElementById('export-suivi').addEventListener('click', () => exportAnalyze('xlsx'));
+    document.getElementById('export-csv').addEventListener('click', () => exportAnalyze('csv'));
+    document.getElementById('export-json').addEventListener('click', () => exportAnalyze('json'));
+    
+  </script>
+</body>
+</html>
